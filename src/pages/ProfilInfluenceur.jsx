@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Grid3x3, Tag, Settings, LogOut, MapPin, ExternalLink } from 'lucide-react'
+import { Grid3x3, Tag, Settings, LogOut, MapPin, ExternalLink, Camera } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useInfluenceurProfile } from '../hooks/useInfluenceurProfile'
 import { supabase } from '../lib/supabase'
@@ -19,8 +19,28 @@ export default function ProfilInfluenceur() {
   const isOwnProfile = !paramUserId || paramUserId === profile?.id
   const targetUserId = paramUserId || profile?.id
 
-  const { profil, posts, offres, reseaux, loading } = useInfluenceurProfile(targetUserId)
+  const { profil, posts, offres, reseaux, loading, reload } = useInfluenceurProfile(targetUserId)
   const [tab, setTab] = useState('publications')
+  const [uploadingCover, setUploadingCover] = useState(false)
+  const coverInputRef = useRef(null)
+
+  const handleCoverChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !profil) return
+    setUploadingCover(true)
+
+    const path = `${profile.id}/cover_${Date.now()}_${file.name}`
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+    if (!uploadError) {
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+      await supabase
+        .from('profils_influenceur')
+        .update({ photo_couverture_url: urlData.publicUrl })
+        .eq('id', profil.id)
+      reload()
+    }
+    setUploadingCover(false)
+  }
 
   const startConversation = async (offre) => {
     const { data: existing } = await supabase
@@ -87,13 +107,45 @@ export default function ProfilInfluenceur() {
         }
       />
 
-      {/* Hero photo + card glassmorphism qui glisse par-dessus */}
+      {/* Hero couverture + card glassmorphism qui glisse par-dessus */}
       <div className="relative">
-        <div className="aspect-[4/3] w-full" style={{ background: 'var(--bg-elevated)' }}>
-          {user?.photo_url && (
-            <img src={user.photo_url} alt="" className="h-full w-full object-cover grayscale" />
-          )}
-        </div>
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleCoverChange}
+        />
+        {isOwnProfile ? (
+          <button
+            onClick={() => coverInputRef.current?.click()}
+            disabled={uploadingCover}
+            className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden"
+            style={{ background: 'var(--bg-elevated)' }}
+          >
+            {profil.photo_couverture_url ? (
+              <img src={profil.photo_couverture_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex flex-col items-center gap-2" style={{ color: 'var(--fg-muted)' }}>
+                <Camera size={26} />
+                <span className="text-xs font-medium">
+                  {uploadingCover ? 'Envoi…' : 'Ajouter une photo de couverture'}
+                </span>
+              </div>
+            )}
+            {profil.photo_couverture_url && (
+              <div className="glass absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full">
+                <Camera size={15} />
+              </div>
+            )}
+          </button>
+        ) : (
+          <div className="aspect-[4/3] w-full" style={{ background: 'var(--bg-elevated)' }}>
+            {profil.photo_couverture_url && (
+              <img src={profil.photo_couverture_url} alt="" className="h-full w-full object-cover" />
+            )}
+          </div>
+        )}
         <div className="glass-strong relative -mt-10 mx-4 rounded-3xl p-5">
           <div className="flex items-start justify-between">
             <div>
