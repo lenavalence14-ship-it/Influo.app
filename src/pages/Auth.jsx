@@ -16,6 +16,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [showReset, setShowReset] = useState(false)
+  const [confirmationSent, setConfirmationSent] = useState(false)
 
   const { signUp, signIn, resetPassword } = useAuth()
   const navigate = useNavigate()
@@ -26,7 +27,13 @@ export default function Auth() {
     setLoading(true)
 
     if (mode === 'signup') {
-      const { error } = await signUp({ email, password, nomComplet, role })
+      const { error, needsEmailConfirmation } = await signUp({ email, password, nomComplet, role })
+      if (needsEmailConfirmation) {
+        setError('')
+        setLoading(false)
+        setConfirmationSent(true)
+        return
+      }
       if (error) {
         setError(traduireErreur(error.message))
         setLoading(false)
@@ -94,6 +101,29 @@ export default function Auth() {
         >
           Retour à la connexion
         </button>
+      </div>
+    )
+  }
+
+  if (confirmationSent) {
+    return (
+      <div className="mx-auto min-h-screen max-w-md px-5 pb-10 pt-8">
+        <div style={{ color: 'var(--fg)' }}>
+          <WaveBars size="md" />
+        </div>
+        <h1 className="font-display mt-5 text-[26px] font-semibold tracking-tight">
+          Vérifie ta boîte mail
+        </h1>
+        <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--fg-muted)' }}>
+          On a envoyé un lien de confirmation à <strong style={{ color: 'var(--fg)' }}>{email}</strong>.
+          Clique dessus, puis reviens te connecter ici.
+        </p>
+        <Button
+          className="mt-6 w-full"
+          onClick={() => { setConfirmationSent(false); setMode('login') }}
+        >
+          Retour à la connexion
+        </Button>
       </div>
     )
   }
